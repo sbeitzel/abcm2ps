@@ -1,7 +1,7 @@
 /*
  * Generic ABC parser.
  *
- * Copyright (C) 1998-2017 Jean-François Moine
+ * Copyright (C) 1998-2018 Jean-François Moine
  * Adapted from abc2ps, Copyright (C) 1996, 1997 Michael Methfessel
  *
  * This program is free software; you can redistribute it and/or modify
@@ -21,7 +21,7 @@
 /* global values */
 int severity;			/* error severity */
 
-static short ulen;		/* unit note length set by M: or L: */
+static int ulen;		/* unit note length set by M: or L: */
 static short meter;		/* upper value of time sig for n-plets */
 static unsigned char microscale; /* current microtone scale */
 static signed char vover;	/* voice overlay (1: single bar, -1: multi-bar */
@@ -36,8 +36,6 @@ static char g_char_tb[128];
 static char *g_deco_tb[128];		/* global decoration names */
 static unsigned short g_micro_tb[MAXMICRO]; /* global microtone values */
 
-#define VOICE_NAME_SZ 64	/* max size of a voice name */
-
 static char *abc_fn;		/* current source file name */
 static int linenum;		/* current source line number */
 static int colnum;		/* current source column number */
@@ -46,6 +44,8 @@ static struct SYMBOL *last_sym;	/* last symbol for errors */
 
 static short nvoice;		/* number of voices (0..n-1) */
 struct VOICE_S *curvoice;	/* current voice while parsing */
+
+struct parse parse;
 
 /* char table for note line parsing */
 #define CHAR_BAD 0
@@ -419,6 +419,8 @@ static char *parse_acc(char *p,
 			break;
 		}
 		p = parse_acc_pit(p, &pit, &acc);
+		if (acc < 0)
+			break;
 		s->u.key.pits[nacc] = pit;
 		s->u.key.accs[nacc++] = acc;
 		while (isspace((unsigned char) *p))
@@ -531,6 +533,7 @@ static void parse_clef(struct SYMBOL *s,
 			name += 4;
 		} else {
 			syntax("Unknown clef", name);
+			clef = TREBLE;
 		}
 	}
 
@@ -561,6 +564,8 @@ static void parse_clef(struct SYMBOL *s,
 		warn = middle;
 		/* 'middle=<note pitch>' */
 		parse_acc_pit(middle, &pit, &acc);
+		if (acc < 0)			// if error
+			pit = 22;
 
 		if (clef < 0)
 			clef = line_tb[(pit + 7) % 7];
@@ -828,11 +833,9 @@ unk:
 		parse_clef(s, clef_name, clef_middle);
 	}
 	if (p_map) {
-		char name[VOICE_NAME_SZ];
-
-		strcpy(name, "%%voicemap ");
-		get_str(&name[11], p_map, VOICE_NAME_SZ - 12);
-		abc_new(ABC_T_PSCOM, name);
+		strcpy(tex_buf, "%%voicemap ");
+		get_str(&tex_buf[11], p_map, TEX_BUF_SZ - 12);
+		abc_new(ABC_T_PSCOM, tex_buf);
 	}
 }
 
@@ -1213,7 +1216,6 @@ static char *parse_voice(char *p,
 {
 	int voice;
 	char *error_txt = NULL;
-	char name[VOICE_NAME_SZ];
 	char *clef_name, *clef_middle, *clef_stlines, *clef_scale;
 	char *p_octave, *p_cue, *p_map;
 	signed char *p_stem;
@@ -1317,14 +1319,14 @@ static struct kw_s {
 		p += kw->len;
 		switch (kw->index) {
 		case 0:			/* name */
-			p = get_str(name, p, VOICE_NAME_SZ);
-			s->u.voice.fname = getarena(strlen(name) + 1);
-			strcpy(s->u.voice.fname, name);
+			p = get_str(tex_buf, p, TEX_BUF_SZ);
+			s->u.voice.fname = getarena(strlen(tex_buf) + 1);
+			strcpy(s->u.voice.fname, tex_buf);
 			break;
 		case 1:			/* subname */
-			p = get_str(name, p, VOICE_NAME_SZ);
-			s->u.voice.nname = getarena(strlen(name) + 1);
-			strcpy(s->u.voice.nname, name);
+			p = get_str(tex_buf, p, TEX_BUF_SZ);
+			s->u.voice.nname = getarena(strlen(tex_buf) + 1);
+			strcpy(s->u.voice.nname, tex_buf);
 			break;
 		case 2:			/* merge */
 			s->u.voice.merge = 1;
@@ -1393,9 +1395,9 @@ static struct kw_s {
 		parse_clef(s, clef_name, clef_middle);
 	}
 	if (p_map) {
-		strcpy(name, "%%voicemap ");
-		get_str(&name[11], p_map, VOICE_NAME_SZ - 12);
-		abc_new(ABC_T_PSCOM, name);
+		strcpy(tex_buf, "%%voicemap ");
+		get_str(&tex_buf[11], p_map, TEX_BUF_SZ - 12);
+		abc_new(ABC_T_PSCOM, tex_buf);
 	}
 	return error_txt;
 }
@@ -1826,6 +1828,7 @@ static int parse_line(char *p)
 {
 	struct SYMBOL *s;
 	char *q, c;
+	char *dot = NULL;
 	struct SYMBOL *last_note_sav = NULL;
 	struct decos dc_sav;
 	int i, flags, flags_sav = 0, slur;
@@ -2003,8 +2006,10 @@ static int parse_line(char *p)
 			/* fall thru */
 		case CHAR_DECO:
 			if (p[-1] == '.') {
-				if (*p == '(' || *p == '-')
+				if (*p == '(' || *p == '-') {
+					dot = p;
 					break;
+				}
 //				if (*p == '|') {
 //					p = parse_bar(p + 1);
 //					parse.last_sym->u.bar.dotted = 1;
@@ -2122,6 +2127,10 @@ static int parse_line(char *p)
 					syntax("Invalid 'r' in tuplet", p);
 					break;
 				}
+				if (pplet >= 128 || qplet >= 128 || rplet >= 128) {
+					syntax("Invalid 'p:q:r' in tuplet", p);
+					break;
+				}
 				if (qplet == 0)
 					qplet = meter % 3 == 0 ? 3 : 2;
 				s = abc_new(ABC_T_TUPLET, NULL);
@@ -2146,7 +2155,7 @@ static int parse_line(char *p)
 				break;
 			}
 			slur <<= 4;
-			if (p[-2] == '.' && dc.n == 0)
+			if (p == dot + 1 && dc.n == 0)
 				slur |= SL_DOTTED;
 			switch (*p) {
 			case '\'':
@@ -2206,7 +2215,7 @@ static int parse_line(char *p)
 			if (!curvoice->last_note
 			 || curvoice->last_note->abc_type != ABC_T_NOTE)
 				goto bad_char;
-			if (p[-2] == '.' && dc.n == 0)
+			if (p == dot + 1 && dc.n == 0)
 				tie_pos = SL_DOTTED;
 			else
 				tie_pos = 0;

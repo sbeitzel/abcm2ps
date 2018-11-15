@@ -36,7 +36,7 @@ static float remy;		/* remaining vertical space in page */
 static float bposy;		/* current position in buffered data */
 static int nepsf;		/* counter for -E/-g output files */
 static int nbpages;		/* number of pages in the output file */
-static int outbufsz;		/* size of outbuf */
+	int outbufsz;		/* size of outbuf */
 static char outfnam[FILENAME_MAX]; /* internal file name for open/close */
 static struct FORMAT *p_fmt;	/* current format while treating a new page */
 
@@ -46,6 +46,11 @@ int in_page;			/* filling a PostScript page */
 char *outbuf;			/* output buffer.. should hold one tune */
 char *mbf;			/* where to a2b() */
 int use_buffer;			/* 1 if lines are being accumulated */
+int (*output)(FILE *out, const char *fmt, ...)
+#ifdef __GNUC__
+	__attribute__ ((format (printf, 2, 3)))
+#endif
+	;
 
 /* -- cut off extension on a file identifier -- */
 static void cutext(char *fid)
@@ -391,6 +396,18 @@ static void format_hf(char *d, char *p)
 			}
 			d += sprintf(d, "%d", pagenum);
 			break;
+		case 'Q':		/* non-resetting page number */
+			if (p[1] == '0') {
+				p++;
+				if (pagenum_nr & 1)
+					break;
+			} else if (p[1] == '1') {
+				p++;
+				if ((pagenum_nr & 1) == 0)
+					break;
+			}
+			d += sprintf(d, "%d", pagenum_nr);
+			break;
 		case 'T':		/* tune title */
 			q = &info['T' - 'A']->text[2];
 			tex_str(q);
@@ -607,6 +624,7 @@ static void init_page(void)
 	if (cfmt.footer)
 		remy -= headfooter(0, pwidth, pheight);
 	pagenum++;
+	pagenum_nr++;
 	outft = -1;
 }
 
