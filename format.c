@@ -141,7 +141,7 @@ static struct format {
 	{"titleformat", &cfmt.titleformat, FORMAT_S, 0},
 	{"titleleft", &cfmt.titleleft, FORMAT_B, 0},
 	{"titlespace", &cfmt.titlespace, FORMAT_U, 0},
-	{"titletrim", &cfmt.titletrim, FORMAT_B, 0},
+	{"titletrim", &cfmt.titletrim, FORMAT_I, 0},
 	{"timewarn", &cfmt.timewarn, FORMAT_B, 0},
 	{"topmargin", &cfmt.topmargin, FORMAT_U, 1},
 	{"topspace", &cfmt.topspace, FORMAT_U, 0},
@@ -400,7 +400,7 @@ void set_format(void)
 	if (!svg && epsf <= 1)
 		f->pango = 1;
 	else
-		lock_fmt(&cfmt.pango);	/* SVG output does not use panga */
+		lock_fmt(&cfmt.pango);	/* SVG output does not use pango */
 #endif
 	f->rbdbstop = 1;
 	f->rbmax = 4;
@@ -608,15 +608,19 @@ float scan_u(char *str, int type)
 	int nch;
 
 	if (sscanf(str, "%f%n", &a, &nch) == 1) {
-		if (str[nch] == '\0' || str[nch] == ' '
-		 || !strncasecmp(str + nch, "pt", 2)) {
+		str += nch;
+		if (a == 0)
+			return 0;
+		if (*str == '\0' || *str == ' ') {
 			if (type != 0)
-				error(0, NULL, "Bad unit \"%s\"", str);
+				error(0, NULL, "No unit \"%s\"", str - nch);
 			return a PT;
 		}
-		if (!strncasecmp(str + nch, "cm", 2))
+		if (!strncasecmp(str, "pt", 2))
+			return a PT;
+		if (!strncasecmp(str, "cm", 2))
 			return type ? a CM : a * 28.35;
-		if (!strncasecmp(str + nch, "in", 2))
+		if (!strncasecmp(str, "in", 2))
 			return type ? a IN : a * 72;
 	}
 	error(1, NULL, "Unknown unit value \"%s\"", str);
@@ -754,7 +758,7 @@ static void g_fspc(char *p,
 			fsize = v;
 	}
 	fontspec(f,
-		 strcmp(fname, "*") != 0 ? fname : 0,
+		 strcmp(fname, "*") != 0 ? fname : NULL,
 		 encoding,
 		 fsize);
 	if (file_initialized <= 0)
@@ -1354,14 +1358,7 @@ void interpret_fmt_line(char *w,		/* keyword */
 		else
 			strcpy(*((char **) fd->v), p);
 		if (fd->subtype == 1) {			// musicfont
-			if ((strncmp(p, "url(", 4)
-			  && strncmp(p, "local(", 4))
-			 || p[strlen(p) - 1] != ')') {
-				cfmt.musicfont = NULL;
-				error(1, NULL,
-					"%s can be only url(..) or local(..)", w);
-				return;
-			}
+			// (no control)
 			svg_font_switch();
 		}
 		break;

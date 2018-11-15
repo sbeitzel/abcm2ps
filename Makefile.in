@@ -19,6 +19,9 @@ VPATH = @srcdir@
 bindir = $(DESTDIR)@bindir@
 datadir = $(DESTDIR)@datarootdir@
 docdir = $(DESTDIR)@docdir@
+mandir = $(DESTDIR)@mandir@
+
+build: abcm2ps abcm2ps.1
 
 # unix
 OBJECTS=abcm2ps.o \
@@ -33,12 +36,20 @@ abcparse.o abcm2ps.o buffer.o deco.o draw.o format.o front.o glyph.o \
 subs.o: subs.c
 	$(CC) $(CFLAGS) $(CPPFLAGS) $(CPPPANGO) -c -o $@ $<
 
-DOCFILES=$(addprefix $(srcdir)/,*.abc *.eps *.txt)
+DOCFILES=$(addprefix $(srcdir)/,README.md)
+examples=$(addprefix $(srcdir)/,*.abc *.eps)
 
-install: abcm2ps
+abcm2ps.1: abcm2ps.rst
+	if [ -x "$$(command -v rst2man)" ]; then\
+		rst2man abcm2ps.rst abcm2ps.1;\
+	else\
+		cp abcm2ps.rst abcm2ps.1;\
+	fi
+
+install: build
 	mkdir -p $(bindir); \
 	mkdir -p $(datadir)/abcm2ps; \
-	mkdir -p $(docdir)/abcm2ps; \
+	mkdir -p $(docdir)/abcm2ps/examples; \
 	$(INSTALL_PROGRAM) abcm2ps $(bindir); \
 	$(INSTALL_DATA) abc2svg.ttf $(datadir)/abcm2ps
 	for f in $(srcdir)/*.fmt; do \
@@ -47,12 +58,18 @@ install: abcm2ps
 	for f in $(DOCFILES); do \
 		$(INSTALL_DATA) $$f $(docdir)/abcm2ps; \
 	done
+	for f in $(examples); do \
+		$(INSTALL_DATA) $$f $(docdir)/abcm2ps/examples; \
+	done
+	mkdir -p $(mandir)/man1
+	$(INSTALL_DATA) abcm2ps.1 $(mandir)/man1
 
 uninstall:
 	echo "uninstalling..."; \
 	rm -f $(bindir)/abcm2ps; \
 	rm -rf $(datadir)/abcm2ps; \
-	rm -rf $(docdir)/abcm2ps
+	rm -rf $(docdir)/abcm2ps; \
+	rm -f $(mandir)/man1/abcm2ps.1
 
 EXAMPLES = accordion.ps \
 	chinese.ps \
@@ -69,8 +86,9 @@ test:	$(EXAMPLES)
 %.ps: %.abc
 	./abcm2ps -O $@ $<
 
-clean:
-	rm -f *.o $(EXAMPLES) # *.obj
-
-cleanconfig: clean
-	rm -f config.h abcm2ps Makefile
+mostlyclean:
+	rm -f *.o $(EXAMPLES)
+clean: mostlyclean
+	rm -f abcm2ps abcm2ps.1
+distclean: clean
+	rm -f config.h Makefile

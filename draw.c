@@ -1871,9 +1871,9 @@ struct SYMBOL *prev_scut(struct SYMBOL *s)
 	s = voice_tb[s->voice].sym;
 	while (s->type != CLEF)
 		s = s->ts_prev;		/* search a main voice */
-	if (s->next->type == KEYSIG)
+	if (s->next && s->next->type == KEYSIG)
 		s = s->next;
-	if (s->next->type == TIMESIG)
+	if (s->next && s->next->type == TIMESIG)
 		s = s->next;
 	return s;
 }
@@ -3075,6 +3075,7 @@ static void draw_note_ties(struct SYMBOL *k1,
 //fixme: clash when 2 ties on second interval chord
 //		if (p & 1)
 //			y += 2 * s;
+#if 0
 		if (job != 1 && job != 3) {
 			if (s > 0) {
 //				if (k1->nflags > -2 && k1->stem > 0
@@ -3090,6 +3091,7 @@ static void draw_note_ties(struct SYMBOL *k1,
 //					x2 -= 4.5;
 //			}
 		}
+#endif
 
 		h = (.04 * (x2 - x1) + 10) * s;
 		slur_out(x1, staff_tb[staff].y + y,
@@ -4683,9 +4685,18 @@ static void draw_symbols(struct VOICE_S *p_voice)
 	for (s = p_voice->sym; s; s = s->next) {
 		if (s->extra)
 			output_ps(s, 1);
-		if ((s->flags & ABC_F_INVIS)
-		 && s->type != NOTEREST && s->type != GRACE)
-			continue;
+		if (s->flags & ABC_F_INVIS) {
+			switch (s->type) {
+			case KEYSIG:
+				memcpy(&p_voice->key, &s->u.key,
+					sizeof p_voice->key);
+			default:
+				continue;
+			case NOTEREST:
+			case GRACE:
+				break;
+			}
+		}
 		set_color(s->color);
 		x = s->x;
 		switch (s->type) {

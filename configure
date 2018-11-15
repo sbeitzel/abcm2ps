@@ -1,8 +1,8 @@
 #! /bin/sh
 
 # (automatic update)
-VERSION=8.13.17
-VDATE=2017-11-21
+VERSION=8.14.0
+VDATE=2018-09-09
 
 CC=gcc
 CFLAGS="-g -O2 -Wall -pipe"
@@ -16,10 +16,11 @@ if test -f ./custom; then
 	. ./custom
 fi
 
-for c in $@; do
+for c in "$@"; do
  case "$c" in
 	--*=*)
-		eval ${c#--}
+		c="${c#--}"
+		eval "${c%%=*}='${c#*=}'"
 		;;
  esac
 done
@@ -41,7 +42,10 @@ if test "x$datarootdir" = x; then
 	datarootdir='${prefix}/share'
 fi
 if test "x$docdir" = x; then
-	docdir='${prefix}/doc'
+	docdir='${prefix}/share/doc'
+fi
+if test "x$mandir" = x; then
+	mandir='${prefix}/share/man'
 fi
 if test "x$DEFAULT_FDIR" = x; then
 	DEFAULT_FDIR="$prefix/share/abcm2ps"
@@ -50,7 +54,7 @@ fi
 if which pkg-config > /dev/null ; then
 	if pkg-config --exists freetype2 ; then
 		if pkg-config --exists pangocairo ; then
-			CPPFLAGS="-DHAVE_PANGO=1"
+			CPPFLAGS="$CPPFLAGS -DHAVE_PANGO=1"
 			CPPPANGO="`pkg-config pango cairo freetype2 --cflags`"
 			LDFLAGS="$LDFLAGS `pkg-config pangocairo pangoft2 freetype2 --libs`"
 		else
@@ -76,6 +80,7 @@ s+@exec_prefix@+$exec_prefix+
 s+@srcdir@+$srcdir+
 s+@bindir@+$bindir+
 s+@datarootdir@+$datarootdir+
+s+@mandir@+$mandir+
 s+@docdir@+$docdir+" Makefile.in > Makefile
 echo "Makefile created"
 

@@ -3,7 +3,7 @@
  *
  * This file is part of abcm2ps.
  *
- * Copyright (C) 1998-2017 Jean-François Moine
+ * Copyright (C) 1998-2018 Jean-François Moine
  * Adapted from abc2ps, Copyright (C) 1996,1997 Michael Methfessel
  *
  * This program is free software; you can redistribute it and/or modify
@@ -1262,9 +1262,6 @@ static void gch_tr1(struct SYMBOL *s, int i, int i2)
 	static const char *latin_names[7] =
 			{ "Do", "Ré", "Mi", "Fa", "Sol", "La", "Si" };
 	static const char *acc_name[5] = {"bb", "b", "", "#", "##"};
-	static const char note_pit[] = {0, 2, 4, 5, 7, 9, 11};
-	static const char pit_note[] = {0, 0, 1, 2, 2, 3, 3, 4, 5, 5, 6, 6};
-	static const char pit_acc[] = {2, 3, 2, 1, 2, 2, 3, 2, 1, 2, 1, 2};
 
 	/* main chord */
 	latin = 0;
@@ -1340,15 +1337,16 @@ static void gch_tr1(struct SYMBOL *s, int i, int i2)
 			a--;
 			p++;
 		}
-		if (*p == '=')
-			p++;
-		i3 = (note_pit[n] + a + i2 + 12) % 12;
-		i4 = pit_note[i3];
+//		if (*p == '=')
+//			p++;
+		i3 = cde2fcg[n] + i2 + a * 7;
+		i4 = cgd2cde[(unsigned) ((i3 + 16 * 7) % 7)];
+		i1 = ((i3 + 1 + 21) / 7 + 2 - 3 + 32 * 5) % 5;
+							/* accidental */
 		if (latin == 0)
 			*new_txt++ = note_names[i4];
 		else
 			new_txt += sprintf(new_txt, "%s", latin_names[i4]);
-		i1 = pit_acc[i3];			// accidental
 		new_txt += sprintf(new_txt, "%s", acc_name[i1]);
 	}
 
@@ -1371,10 +1369,10 @@ static void gch_tr1(struct SYMBOL *s, int i, int i2)
 			} else {
 				a = 0;
 			}
-			i3 = (note_pit[n] + a + i2 + 12) % 12;
-			i4 = pit_note[i3];
+			i3 = cde2fcg[n] + i2 + a * 7;
+			i4 = cgd2cde[(unsigned) ((i3 + 16 * 7) % 7)];
+			i1 = ((i3 + 1 + 21) / 7 + 2 - 3 + 32 * 5) % 5;
 			*new_txt++ = note_names[i4];
-			i1 = pit_acc[i3];
 			new_txt += sprintf(new_txt, "%s", acc_name[i1]);
 		}
 	}
@@ -1386,6 +1384,8 @@ static void gch_capo(struct SYMBOL *s)
 	char *p = s->text, *q, *r;
 	int i, l, li = 0;
 	static const char *capo_txt = "  (capo: %d)";
+	static signed char cap_trans[] =
+		{0, 5, -2, 3, -4, 1, -6, -1, 4, -3, 2, -5};
 
 	// search the chord symbols
 	for (;;) {
@@ -1420,28 +1420,43 @@ static void gch_capo(struct SYMBOL *s)
 	if (q)
 		strcpy(r + i + l, q);	// ending annotations
 	s->text = r;
-	gch_tr1(s, i, -cfmt.capo);
+	gch_tr1(s, i, cap_trans[cfmt.capo % 12]);
 }
 
 static void gch_transpose(struct SYMBOL *s)
 {
-	int i2 = ((curvoice->ckey.sf - curvoice->okey.sf + 12) * 7) % 12;
-	char *o = s->text, *p = o, *q = o, *r;
+	int in_ch = 0;
+	int i2 = curvoice->ckey.sf - curvoice->okey.sf;
+	char *o = s->text, *p = o;
 
 	// search the chord symbols
 	for (;;) {
-		if (!strchr("^_<>@", *p)) {
-			q = strchr(p, '\t');
-			if (q) {
-				r = strchr(p, '\n');
-				if (!r || q < r)
-					gch_tr1(s, q + 1 - o, i2);
+		if (in_ch || !strchr("^_<>@", *p)) {
+			gch_tr1(s, p - s->text, i2);
+			p = s->text + (p - o);
+			o = s->text;
+			for (p++; *p; p++) {
+				if (strchr("\t;\n", *p))
+					break;
 			}
-			gch_tr1(s, p - o, i2);
+			if (!*p)
+				break;
+			switch (*p) {
+			case '\t':
+				in_ch = 1;
+				break;
+			case ';':
+				in_ch = !strchr("^_<>@", p[1]);
+				break;
+			default:
+				in_ch = 0;
+				break;
+			}
+		} else {
+			p = strchr(p, '\n');
+			if (!p)
+				break;
 		}
-		p = strchr(p, '\n');
-		if (!p)
-			return;
 		p++;
 	}
 }
@@ -1460,10 +1475,10 @@ static void gch_build(struct SYMBOL *s)
 	s->gch = getarena(sizeof *s->gch * MAXGCH);
 	memset(s->gch, 0, sizeof *s->gch * MAXGCH);
 
-	if (cfmt.capo)
-		gch_capo(s);
 	if (curvoice->transpose != 0)
 		gch_transpose(s);
+	if (cfmt.capo)
+		gch_capo(s);
 
 	/* split the guitar chords / annotations
 	 * and initialize their vertical offsets */
@@ -1996,6 +2011,7 @@ static char txt_no_note[] = "No note in voice overlay";
 		if (p_voice->time != over_mxtime)
 			error(1, s, tx_wrong_dur);
 		curvoice = &voice_tb[over_voice];
+		over_mxtime = 0;
 		over_voice = -1;
 		over_time = -1;
 		return;
@@ -2003,6 +2019,7 @@ static char txt_no_note[] = "No note in voice overlay";
 
 	/* treat the full overlay start */
 	if (s->u.v_over.type == V_OVER_S) {
+		over_voice = p_voice - voice_tb;
 		over_time = p_voice->time;
 		return;
 	}
@@ -2093,10 +2110,9 @@ static char txt_no_note[] = "No note in voice overlay";
 		}
 		over_time = s->time;
 	} else {
-		if (over_voice < 0) {
+		if (over_mxtime == 0)
 			over_mxtime = p_voice->time;
-			over_voice = voice;
-		} else if (p_voice->time != over_mxtime)
+		else if (p_voice->time != over_mxtime)
 			error(1, s, tx_wrong_dur);
 	}
 	p_voice2->time = over_time;
@@ -3463,8 +3479,7 @@ void do_tune(void)
 			break;
 		case ABC_T_NOTE:
 		case ABC_T_REST:
-			s1 = s;
-			s1->dur = s1->u.note.notes[0].len;
+			s->dur = s->u.note.notes[0].len;
 			break;
 		}
 	}
@@ -3476,7 +3491,6 @@ void do_tune(void)
 
 	/* scan the tune */
 	for (s = parse.first_sym; s; s = s->abc_next) {
-		s1 = s;
 		if (s->flags & ABC_F_LYRIC_START)
 			curvoice->lyric_start = curvoice->last_sym;
 		switch (s->abc_type) {
@@ -3491,17 +3505,17 @@ void do_tune(void)
 			if (curvoice->space
 			 && !(s->flags & ABC_F_GRACE)) {
 				curvoice->space = 0;
-				s1->flags |= ABC_F_SPACE;
+				s->flags |= ABC_F_SPACE;
 			}
-			get_note(s1);
+			get_note(s);
 			break;
 		case ABC_T_BAR:
 			if (over_bar)
-				get_over(s1);
-			get_bar(s1);
+				get_over(s);
+			get_bar(s);
 			break;
 		case ABC_T_CLEF:
-			get_clef(s1);
+			get_clef(s);
 			break;
 		case ABC_T_EOLN:
 			if (cfmt.breakoneoln
@@ -3527,12 +3541,10 @@ void do_tune(void)
 				switch (s->abc_next->text[0]) {
 				case 'w':
 					s = get_info(s->abc_next);
-					s1 = s;
 					continue;
 				case 'd':
 				case 's':
 					s = s->abc_next;
-					s1 = s;
 					continue;
 				}
 				break;
@@ -3554,21 +3566,22 @@ void do_tune(void)
 				curvoice->time += dur;
 				break;
 			}
-			sym_link(s1, MREST);
+			sym_link(s, MREST);
 			s->dur = dur;
 			curvoice->time += dur;
-			if (s1->text)
-				gch_build(s1);	/* build the guitar chords */
-			if (s1->u.bar.dc.n > 0)
-				deco_cnv(&s1->u.bar.dc, s, NULL);
+			if (s->text)
+				gch_build(s);	/* build the guitar chords */
+			if (s->u.bar.dc.n > 0)
+				deco_cnv(&s->u.bar.dc, s, NULL);
 			break;
 		    }
 		case ABC_T_MREP: {
 			int n;
 
-			if (!s->abc_next || s->abc_next->abc_type != ABC_T_BAR) {
-				error(1, s1,
-				      "Measure repeat not followed by a bar");
+			s2 = curvoice->last_sym;
+			if (!s2 || s2->type != BAR) {
+				error(1, s,
+				      "No bar before measure repeat");
 				break;
 			}
 			if (curvoice->ignore)
@@ -3601,20 +3614,20 @@ void do_tune(void)
 			break;
 		    }
 		case ABC_T_V_OVER:
-			get_over(s1);
+			get_over(s);
 			continue;
 		case ABC_T_TUPLET:
-			set_tuplet(s1);
+			set_tuplet(s);
 			break;
 		default:
 			continue;
 		}
-		if (s1->type == 0)
+		if (s->type == 0)
 			continue;
 		if (curvoice->second)
-			s1->sflags |= S_SECOND;
+			s->sflags |= S_SECOND;
 		if (curvoice->floating)
-			s1->sflags |= S_FLOATING;
+			s->sflags |= S_FLOATING;
 	}
 
 	gen_ly(0);
@@ -3908,9 +3921,13 @@ static void set_k_acc(struct SYMBOL *s)
 			}
 		}
 		if (j == nacc) {
-			accs[j] = s->u.key.accs[i];
-			pits[j] = s->u.key.pits[i];
-			nacc++;		/* cannot overflow */
+			if (nacc >= sizeof accs) {
+				error(1, s, "Too many accidentals");
+			} else {
+				accs[j] = s->u.key.accs[i];
+				pits[j] = s->u.key.pits[i];
+				nacc++;
+			}
 		}
 	}
 	for (i = 0; i < nacc; i++) {
@@ -4495,12 +4512,28 @@ static void get_note(struct SYMBOL *s)
 		gch_build(s);
 }
 
+static char *get_val(char *p, float *v)
+{
+	char tmp[32], *r = tmp;
+
+	while (isspace((unsigned char) *p))
+		p++;
+	while ((isdigit((unsigned char) *p) && r < &tmp[32 - 1])
+	    || *p == '-' || *p == '.')
+		*r++ = *p++;
+	*r = '\0';
+	sscanf(tmp, "%f", v);
+	return p;
+}
+
 // parse <path .../> from %%beginsvg and convert to Postscript
 static void parse_path(char *p, char *q, char *id, int idsz)
 {
 	struct SYMBOL *s;
-	char *r, *op = NULL, *width;
+	char *buf, *r, *t, *op = NULL, *width, *scale, *trans;
 	int i, fill, npar = 0;
+	float x1, y1, x, y;
+char *rmax;
 
 	r = strstr(p, "class=\"");
 	if (!r || r > q)
@@ -4508,6 +4541,12 @@ static void parse_path(char *p, char *q, char *id, int idsz)
 	r += 7;
 	fill = strncmp(r, "fill", 4) == 0;
 	width = strstr(p, "stroke-width:");
+	scale = strstr(p, "scale(");
+	if (scale && scale > q)
+		scale = NULL;
+	trans = strstr(p, "translate(");
+	if (trans && trans > q)
+		trans = NULL;
 	for (;;) {
 		p = strstr(p, "d=\"");
 		if (!p)
@@ -4516,13 +4555,46 @@ static void parse_path(char *p, char *q, char *id, int idsz)
 			break;
 		p += 3;
 	}
-	r = tex_buf;
+	i = (int) (q - p) * 4 + 200;		// estimated PS buffer size
+	if (i > TEX_BUF_SZ)
+		buf = malloc(i);
+	else
+		buf = tex_buf;
+rmax=buf + i;
+	r = buf;
 	*r++ = '/';
 	idsz -= 5;
 	strncpy(r, id + 4, idsz);
 	r += idsz;
-	*r++ = '{';
-	*r++ = 'M';
+	strcpy(r, "{gsave T ");
+	r += strlen(r);
+	if (scale || trans) {
+		if (scale) {
+			scale += 6;		// "scale("
+			t = get_val(scale, &x1);
+			if (*t == ',')
+				t = get_val(t + 1, &y1);
+			else
+				y1 = x1;
+		}
+		if (trans) {
+			trans += 10;		// "translate("
+			t = get_val(trans, &x) + 1; //","
+			t = get_val(t, &y);
+		}
+		if (!scale)
+			r += sprintf(r, "%.2f %.2f T ", x, -y);
+		else if (!trans)
+			r += sprintf(r, "%.2f %.2f scale ", x1, y1);
+		else if (scale > trans)
+			r += sprintf(r, "%.2f %.2f T %.2f %.2f scale ",
+					x, -y, x1, y1);
+		else
+			r += sprintf(r, "%.2f %.2f scale %.2f %.2f T ",
+					x1, y1, x, -y);
+	}
+	strcpy(r, "0 0 M\n");
+	r += strlen(r);
 	if (width && width < q) {
 		*r++ = ' ';
 		width += 13;
@@ -4548,30 +4620,33 @@ static void parse_path(char *p, char *q, char *id, int idsz)
 			}
 			continue;
 		case 'M':
+			op = "M";
+			npar = 2;
+			break;
 		case 'm':
 			op = "RM";
 			npar = 2;
 			break;
-//		case 'L':
-//			op = "L";
-//			npar = 2;
-//			break;
+		case 'L':
+			op = "L";
+			npar = 2;
+			break;
 		case 'l':
 			op = "RL";
 			npar = 2;
 			break;
-//		case 'H':
-//			op = "H";
-//			npar = 1;
-//			break;
+		case 'H':
+			op = "H";
+			npar = 1;
+			break;
 		case 'h':
 			op = "h";
 			npar = 1;
 			break;
-//		case 'V':
-//			op = "V";
-//			npar = 1;
-//			break;
+		case 'V':
+			op = "V";
+			npar = 1;
+			break;
 		case 'v':
 			*r++ = ' ';
 			*r++ = '0';
@@ -4582,10 +4657,10 @@ static void parse_path(char *p, char *q, char *id, int idsz)
 			op = "closepath";
 			npar = 0;
 			break;
-//		case 'C':
-//			op = "C";
-//			npar = 6;
-//			break;
+		case 'C':
+			op = "C";
+			npar = 6;
+			break;
 		case 'c':
 			op = "RC";
 			npar = 6;
@@ -4596,6 +4671,28 @@ static void parse_path(char *p, char *q, char *id, int idsz)
 //		case 'a':
 //			op = "arc";
 //			break;
+		case 'q':
+			op = "RC";
+			npar = 2;
+			p = get_val(p, &x1);
+			p = get_val(p, &y1);
+			t = get_val(p, &x);
+			t = get_val(t, &y);
+			r += sprintf(r, " %.2f %.2f %.2f %.2f",
+					x1*2/3, -y1*2/3,
+					x1+(x-x1)*2/3, -y1-(y-y1)*2/3);
+			break;
+		case 't':
+			op = "RC";
+			npar = 2;
+			x1 = x - x1;
+			y1 = y - y1;
+			t = get_val(p, &x);
+			t = get_val(t, &y);
+			r += sprintf(r, " %.2f %.2f %.2f %.2f",
+					x1*2/3, -y1*2/3,
+					x1+(x-x1)*2/3, -y1-(y-y1)*2/3);
+			break;
 		}
 		*r++ = ' ';
 		for (i = 0; i < npar; i++) {
@@ -4619,13 +4716,20 @@ static void parse_path(char *p, char *q, char *id, int idsz)
 		}
 		strcpy(r, op);
 		r += strlen(r);
+if (r + 30 > rmax) bug("Buffer overflow in SVG to PS", 1);
 	}
-	strcpy(r, fill ? " fill}!" : " stroke}!");
+	strcpy(r, fill ? " fill" : " stroke");
+	r += strlen(r);
+	strcpy(r, "\ngrestore}!");
+	r += strlen(r);
+
 	s = getarena(sizeof(struct SYMBOL));
 	memset(s, 0, sizeof(struct SYMBOL));
-	s->text = getarena(strlen(tex_buf) + 1);
-	strcpy(s->text, tex_buf);
+	s->text = getarena(strlen(buf) + 1);
+	strcpy(s->text, buf);
 	ps_def(s, s->text, 'p');
+	if (buf != tex_buf)
+		free(buf);
 }
 
 // parse <defs> .. </defs> from %%beginsvg
@@ -4655,11 +4759,11 @@ static void parse_defs(char *p, char *q)
 		while (*p != '<')
 			p--;
 		if (strncmp(p, "<path ", 6) == 0) {
-			parse_path(p + 6, q, id, idsz);
-			p = strstr(p, "/>");
-			if (!p)
+			r = strstr(p, "/>");
+			parse_path(p + 6, r, id, idsz);
+			if (!r)
 				break;
-			p += 2;
+			p = r + 2;
 			continue;
 		}
 		break;
@@ -4926,6 +5030,8 @@ static void get_map(char *p)
 	}
 	if (type != MAP_ALL) {
 		p = parse_acc_pit(p, &pit, &acc);
+		if (acc < 0)			// if error
+			pit = acc = 0;
 		if (type == MAP_OCT || type == MAP_KEY) {
 			pit %= 7;
 			if (type == MAP_KEY)
@@ -4981,8 +5087,10 @@ static void get_map(char *p)
 	if (isspace((unsigned char) *q) || *q == '\0') {
 		if (*p != '*') {
 			p = parse_acc_pit(p, &pit, &acc);
-			note_map->print_pit = pit;
-			note_map->print_acc = acc;
+			if (acc >= 0) {
+				note_map->print_pit = pit;
+				note_map->print_acc = acc;
+			}
 			if (*p == '\0')
 				return;
 		}
@@ -5025,8 +5133,10 @@ static void get_map(char *p)
 		} else if (strncmp(p, "print=", 6) == 0) {
 			p += 6;
 			p = parse_acc_pit(p, &pit, &acc);
-			note_map->print_pit = pit;
-			note_map->print_acc = acc;
+			if (acc >= 0) {
+				note_map->print_pit = pit;
+				note_map->print_acc = acc;
+			}
 		} else if (strncmp(p, "color=", 6) == 0) {
 			int color;
 

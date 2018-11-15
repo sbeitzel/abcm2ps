@@ -35,6 +35,7 @@ struct SYMBOL *sym;		/* (points to the symbols of the current voice) */
 
 int tunenum;			/* number of current tune */
 int pagenum = 1;		/* current page in output file */
+int pagenum_nr = 1;		/* current page (non-resettable) */
 
 				/* switches modified by command line flags: */
 int quiet;			/* quiet mode */
@@ -69,7 +70,7 @@ static struct SYMBOL notitle;
 /* memory arena (for clrarena, lvlarena & getarena) */
 #define MAXAREAL 3		/* max area levels:
 				 * 0; global, 1: tune, 2: generation */
-#define AREANASZ 8192		/* standard allocation size */
+#define AREANASZ 0x4000		/* standard allocation size */
 #define MAXAREANASZ 0x20000	/* biggest allocation size */
 static int str_level;		/* current arena level */
 static struct str_a {
@@ -323,7 +324,7 @@ static void treat_abc_file(char *fn)
 		/* search the start of ABC lines */
 #if 1
 		for (q = p, l2 = l - 10; l2 > 0; l2--, q++) {
-			if (strncmp(q, "\n%abc2", 6) == 0
+			if (strncmp(q, "\n%abc", 5) == 0
 //			 || strncmp(q, "\n%%", 3) == 0
 			 || strncmp(q, "\nX:", 3) == 0)
 				break;
@@ -1062,11 +1063,11 @@ void clrarena(int level)
 	if ((a_p = str_r[level]) == NULL) {
 		str_r[level] = a_p = malloc(sizeof *str_r[0] + AREANASZ - 2);
 		a_p->sz = AREANASZ;
-		a_p->n = 0;
+		a_p->n = NULL;
 	}
 	str_c[level] = a_p;
 	a_p->p = a_p->str;
-	a_p->r = sizeof a_p->str;
+	a_p->r = a_p->sz;
 }
 
 int lvlarena(int level)
@@ -1103,7 +1104,7 @@ void *getarena(int len)
 			a_p->n->sz = len;
 		} else if (a_p->n == 0) {		/* standard allocation */
 			a_p->n = malloc(sizeof *str_r[0] + AREANASZ - 2);
-			a_p->n->n = 0;
+			a_p->n->n = NULL;
 			a_p->n->sz = AREANASZ;
 		}
 		str_c[str_level] = a_p = a_p->n;
