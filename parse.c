@@ -918,11 +918,13 @@ static void set_bar_num(void)
 			s->ts_prev->ts_next = s->ts_next;
 			s->next = s2;
 			s->prev = s2->prev;
-			s->prev->next = s;
+			if (s->prev)
+				s->prev->next = s;
 			s2->prev = s;
 			s->ts_next = s2;
 			s->ts_prev = s2->ts_prev;
-			s->ts_prev->ts_next = s;
+			if (s->ts_prev)
+				s->ts_prev->ts_next = s;
 			s2->ts_prev = s;
 //			if (s->sflags & S_NEW_SY) {
 //				s->sflags &= ~S_NEW_SY;
@@ -5156,14 +5158,17 @@ static void get_map(char *p)
 static struct SYMBOL *process_pscomment(struct SYMBOL *s)
 {
 	char w[32], *p, *q;
-	int lock, voice;
+	int voice;
 	float h1;
+	int lock = 0;
 
 	p = s->text + 2;		/* skip '%%' */
 	q = p + strlen(p) - 5;
-	lock = strncmp(q, " lock", 5) == 0;
-	if (lock)
-		*q = '\0'; 
+	if (q > p
+	 && strncmp(q, " lock", 5) == 0) {
+		lock = 1;
+		*q = '\0';
+	}
 	p = get_str(w, p, sizeof w);
 	if (s->state == ABC_S_HEAD
 	 && !check_header(s)) {
