@@ -3,12 +3,12 @@
  *
  * This file is part of abcm2ps.
  *
- * Copyright (C) 1998-2017 Jean-François Moine
- * Adapted from abc2ps, Copyright (C) 1996,1997 Michael Methfessel
+ * Copyright (C) 1998-2019 Jean-François Moine (http://moinejf.free.fr)
+ * Adapted from abc2ps, Copyright (C) 1996-1998 Michael Methfessel
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as published
+ * by the Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
  */
 
@@ -374,9 +374,9 @@ static char ps_head[] =
 
 	/* -- bars -- */
 	/* h x y bar - thin bar */
-	"/bar{M 1 SLW 0 exch RL stroke}!\n"
+	"/bar{3 -1 roll 1 exch rectfill}!\n"
 	/* h x y dotbar - dotted bar */
-	"/dotbar{[5] 0 setdash bar [] 0 setdash}!\n"
+	"/dotbar{M 1 SLW 0 exch RL [5] 0 setdash stroke [] 0 setdash}!\n"
 	/* h x y thbar - thick bar */
 	"/thbar{3 -1 roll 3 exch rectfill}!\n"
 	/* x y rdots - repeat dots */
@@ -535,10 +535,16 @@ static char psdgl[] =
 	"	M 0.8 SLW -6 1.2 RM 12.6 12.6 RL stroke\n"
 	"	7 add exch 6 sub exch 1.2 0 360 arc fill\n"
 	"	8 add exch 6 add exch 1.2 0 360 arc fill}!\n"
+	/* x y dacoda - Da Coda */
+	"/dacoda{2 1 roll 10 add 2 1 roll dup 3 -1 roll dup 3 1 roll -23 add 4 1 roll\n"
+	"	1 SLW 2 add 2 copy M 0 20 RL\n"
+	"	2 copy M -10 10 RM 20 0 RL stroke\n"
+	"	10 add 6 0 360 arc 1.7 SLW stroke\n"
+	"	/Times-Roman 16 selectfont 7 add M (Da) showc}!\n"
 	/* x y coda - coda */
 	"/coda{	1 SLW 2 add 2 copy M 0 20 RL\n"
-	"	2 copy M -10 10 RM 20 0 RL stroke\n"
-	"	10 add 6 0 360 arc 1.7 SLW stroke}!\n"
+	"	2 copy M -10 10 RM 20 0 RL 1.1 SLW stroke\n"
+	"	exch -7 add exch (O) 3 1 roll /Times-Bold 18 selectfont 4 add M show}!\n"
 	/* x y tclef - treble clef */
 	"/utclef{<95200072\n"
 	"	0000ff2e01c2030c\n"

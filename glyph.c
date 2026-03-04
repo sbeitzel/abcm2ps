@@ -3,11 +3,11 @@
  *
  * This file is part of abcm2ps.
  *
- * Copyright (C) 2011-2015 Jean-François Moine (http://moinejf.free.fr)
+ * Copyright (C) 2011-2019 Jean-François Moine (http://moinejf.free.fr)
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as published
+ * by the Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
  */
 
@@ -223,7 +223,7 @@ void glyph_add(char *p)
 	while (isspace(*p))
 		p++;
 	i3 = i4 = -1;
-	if (val < 0x0400) {
+	if (val < 0x0800) {
 		i1 = (val >> 6) - 2;
 		i2 = val & 0x3f;
 	} else if (val < 0x10000) {
@@ -238,7 +238,7 @@ void glyph_add(char *p)
 	}
 	g1 = utf_1[i1];
 	if (!g1) {
-		g1 = calloc(64, sizeof(char **));
+		g1 = calloc(64, sizeof(char *));
 		utf_1[i1] = g1;
 	}
 	if (i3 < 0) {
@@ -247,7 +247,7 @@ void glyph_add(char *p)
 	}
 	g = (char **) g1[i2];
 	if (!g) {
-		g = calloc(64, sizeof(char **));
+		g = calloc(64, sizeof(char *));
 		g1[i2] = (char *) g;
 	}
 	if (i4 < 0) {
@@ -256,7 +256,7 @@ void glyph_add(char *p)
 	}
 	g1 = (char **) g[i3];
 	if (!g1) {
-		g1 = calloc(64, sizeof(char **));
+		g1 = calloc(64, sizeof(char *));
 		g[i3] = (char *) g1;
 	}
 	g1[i4] = strdup(p);

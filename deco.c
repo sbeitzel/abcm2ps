@@ -3,11 +3,11 @@
  *
  * This file is part of abcm2ps.
  *
- * Copyright (C) 2000-2017, Jean-François Moine.
+ * Copyright (C) 2000-2021 Jean-François Moine (http://moinejf.free.fr)
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as published
+ * by the Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
  */
 
@@ -93,6 +93,7 @@ static char *std_deco_tb[] = {
 	"emphasis 3 accent 7 4 4",
 	"lowermordent 3 lmrd 10 2 2",
 	"coda 3 coda 24 10 10",
+	"dacoda 3 dacoda 16 10 10",
 	"uppermordent 3 umrd 10 2 2",
 	"segno 3 sgno 20 4 4",
 	"trill 3 trl 11 4 4",
@@ -121,7 +122,12 @@ static char *std_deco_tb[] = {
 	"marcato 3 marcato 9 3 3",
 	"^ 3 marcato 9 3 3",
 	"D.C. 3 dacs 16 10 10 D.C.",
+	"D.C.alcoda 3 dacs 16 10 10 D.C. al Coda",
+	"D.C.alfine 3 dacs 16 10 10 D.C. al Fine",
+	"dacapo 3 dacs 16 10 10 Da Capo",
 	"D.S. 3 dacs 16 10 10 D.S.",
+	"D.S.alcoda 3 dacs 16 10 10 D.S. al Coda",
+	"D.S.alfine 3 dacs 16 10 10 D.S. al Fine",
 	"fine 3 dacs 16 10 10 FINE",
 	"f 6 pf 18 1 7",
 	"ff 6 pf 18 2 10",
@@ -846,7 +852,7 @@ static unsigned char deco_build(char *name, char *text)
 		return 128;
 	}
 	if (c_func == 5)			// old !trill(!
-		c_func = 3;
+		c_func = 6;
 	if (c_func == 7)			// old !cresc(!
 		c_func = 6;
 
@@ -1070,6 +1076,7 @@ void deco_cnv(struct decos *dc,
 	struct deco_def_s *dd;
 	unsigned char ideco;
 	static char must_note_fmt[] = "Deco !%s! must be on a note";
+	static char no_head_fmt[] = "!%s! cannot be on a head";
 
 	for (i = dc->n; --i >= 0; ) {
 		if ((ideco = dc->tm[i].t) == 0)
@@ -1083,13 +1090,16 @@ void deco_cnv(struct decos *dc,
 
 		/* special decorations */
 		switch (dd->func) {
+		case 5:
+		case 6:
+		case 7:
 		case 2:			// arp
 			if (m >= 0) {
-				error(1, s,
-					"!%s! cannot be on a head (function 2)",
-					dd->name);
+				error(1, s, no_head_fmt, dd->name);
 				break;
 			}
+			if (dd->func != 2)
+				continue;
 			/* fall thru */
 		case 0:			// near
 
@@ -1176,7 +1186,8 @@ void deco_cnv(struct decos *dc,
 		case 34:		/* trem1..trem4 */
 			if (s->abc_type != ABC_T_NOTE
 			 || !prev
-			 || prev->abc_type != ABC_T_NOTE) {
+			 || prev->abc_type != ABC_T_NOTE
+			 || s->dur != prev->dur) {
 				error(1, s,
 					"!%s! must be on the last of a couple of notes",
 					dd->name);

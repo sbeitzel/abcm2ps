@@ -64,6 +64,7 @@ enum accidentals {
 #endif
 
 #define CM		* 37.8	/* factor to transform cm to pt */
+#define MM		* 3.78	/* factor to transform mm to pt */
 #define PT			/* factor to transform pt to pt */
 #define IN		* 96.0	/* factor to transform inch to pt */
 
@@ -524,16 +525,17 @@ struct FORMAT { 		/* struct for page layout */
 	float topspace, wordsspace, titlespace, subtitlespace, partsspace;
 	float composerspace, musicspace, vocalspace, textspace;
 	float breaklimit, maxshrink, lineskipfac, parskipfac, stemheight;
-	float gutter, indent, infospace, slurheight, notespacingfactor, scale;
+	float gutter, indent, infospace, slurheight, tieheight, notespacingfactor, scale;
 	float staffsep, sysstaffsep, maxstaffsep, maxsysstaffsep, stretchlast;
+	float staffscale;			// (treated in parse.c)
 	int abc2pscompat, alignbars, aligncomposer, autoclef;
 	int barsperstaff, breakoneoln, bstemdown, cancelkey, capo;
 	int combinevoices, contbarnb, continueall, custos;
-	int dblrepbar, decoerr, dynalign, flatbeams, infoline;
+	int dblrepbar, decoerr, dynalign, flatbeams, flatbeamgracing, infoline;
 	int gchordbox, graceslurs, graceword,gracespace, hyphencont;
 	int keywarn, landscape, linewarn;
-	int measurebox, measurefirst, measurenb, micronewps;
-	int oneperpage;
+	int measurebox, measurefirst, measurenb;
+	int nedo, oneperpage;
 #ifdef HAVE_PANGO
 	int pango;
 #endif
@@ -543,7 +545,7 @@ struct FORMAT { 		/* struct for page layout */
 	int staffnonote, straightflags, stretchstaff;
 	int textoption, titlecaps, titleleft, titletrim;
 	int timewarn, transpose, tuplets;
-	char *bgcolor, *dateformat, *header, *footer, *titleformat;
+	char *bgcolor, *dateformat, *header, *footer, *header2, *footer2, *titleformat;
 	char *musicfont;
 	struct FONTSPEC font_tb[FONT_MAX];
 	char ndfont;		/* current index of dynamic fonts */

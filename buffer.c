@@ -3,12 +3,12 @@
  *
  * This file is part of abcm2ps.
  *
- * Copyright (C) 1998-2017 Jean-François Moine
- * Adapted from abc2ps, Copyright (C) 1996,1997 Michael Methfessel
+ * Copyright (C) 1998-2019 Jean-François Moine
+ * Adapted from abc2ps, Copyright (C) 1996-1998 Michael Methfessel
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as published
+ * by the Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
  */
 
@@ -29,7 +29,7 @@ static float ln_lmarg[BUFFLN];	/* left margin of buffered lines */
 static float ln_scale[BUFFLN];	/* scale of buffered lines */
 static signed char ln_font[BUFFLN];	/* font of buffered lines */
 static float cur_lmarg = 0;	/* current left margin */
-static float min_lmarg, max_rmarg;	/* margins for -E/-g */
+static float max_rmarg;		/* margins for -E/-g */
 static float cur_scale = 1.0;	/* current scale */
 static float maxy;		/* usable vertical space in page */
 static float remy;		/* remaining vertical space in page */
@@ -129,8 +129,7 @@ static void cnv_date(time_t *ltime)
 /* (used only with eps -E and svg -g) */
 void marg_init(void)
 {
-	min_lmarg = cfmt.pagewidth;
-	max_rmarg = cfmt.pagewidth;
+	cur_lmarg = max_rmarg = 0;
 }
 
 /* -- initialize the postscript file (PS or EPS) -- */
@@ -141,11 +140,10 @@ static void init_ps(char *str)
 	char version[] = "/creator [(abcm2ps) " VERSION "] def";
 
 	if (epsf) {
-		cur_lmarg = min_lmarg - 10;
 		fprintf(fout, "%%!PS-Adobe-2.0 EPSF-2.0\n"
 			"%%%%BoundingBox: 0 0 %.0f %.0f\n",
 			((p_fmt->landscape ? p_fmt->pageheight : p_fmt->pagewidth)
-				- cur_lmarg - max_rmarg + 10) * PPI_96_72,
+				- cur_lmarg - max_rmarg) * PPI_96_72,
 			-bposy * PPI_96_72);
 		marg_init();
 	} else {
@@ -222,8 +220,8 @@ static void init_ps(char *str)
 				p_fmt->pageheight * PPI_96_72);
 		if (cfmt.gutter)
 			fprintf(fout,
-			 "\n	/BeginPage{1 and 0 eq{%.1f 0 T}{-%.1f 0 T}ifelse}bind\n	",
-				cfmt.gutter, cfmt.gutter);
+			 "\n	/BeginPage{1 and 0 eq{%.1f 0 T}{%.1f 0 T}ifelse}bind\n	",
+				cfmt.gutter, -cfmt.gutter);
 		fprintf(fout, ">>setpagedevice}if\n");
 	}
 	fprintf(fout, "%%%%EndSetup\n");
@@ -233,7 +231,6 @@ static void init_ps(char *str)
 /* -- initialize the svg file (option '-g') -- */
 static void init_svg(char *str)
 {
-	cur_lmarg = min_lmarg - 10;
 	output = svg_output;
 #if 1 //fixme:test
 	if (file_initialized > 0)
@@ -241,7 +238,7 @@ static void init_svg(char *str)
 #endif
 	define_svg_symbols(str, nepsf,
 		(p_fmt->landscape ? p_fmt->pageheight : p_fmt->pagewidth)
-				- cur_lmarg - max_rmarg + 10,
+				- cur_lmarg - max_rmarg,
 		-bposy);
 	file_initialized = 1;
 	user_ps_write();
@@ -437,12 +434,18 @@ static float headfooter(int header,
 	int cft_sav, dft_sav, outbufsz_sav;
 
 	if (header) {
-		p = cfmt.header;
+		if (pagenum & 1)
+			p = cfmt.header ? cfmt.header : cfmt.header2;
+		else
+			p = cfmt.header2 ? cfmt.header2 : cfmt.header;
 		f = &cfmt.font_tb[HEADERFONT];
 		size = f->size;
 		y = -size;
 	} else {
-		p = cfmt.footer;
+		if (pagenum & 1)
+			p = cfmt.footer ? cfmt.footer : cfmt.footer2;
+		else
+			p = cfmt.footer2 ? cfmt.footer2 : cfmt.footer;
 		f = &cfmt.font_tb[FOOTERFONT];
 		size = f->size;
 		y = - (pheight - cfmt.topmargin - cfmt.botmargin)
@@ -612,7 +615,7 @@ static void init_page(void)
 		if (p)
 			cfmt.header = strdup(p);
 	}
-	if (cfmt.header) {
+	if (cfmt.header || cfmt.header2) {
 		float dy;
 
 		dy = headfooter(1, pwidth, pheight);
@@ -621,7 +624,7 @@ static void init_page(void)
 			remy -= dy;
 		}
 	}
-	if (cfmt.footer)
+	if (cfmt.footer || cfmt.footer2)
 		remy -= headfooter(0, pwidth, pheight);
 	pagenum++;
 	pagenum_nr++;
@@ -732,7 +735,6 @@ void write_eps(void)
 		close_fout();
 	else
 		file_initialized = 0;
-	cur_lmarg = 0;
 	cur_scale = 1.0;
 }
 
@@ -937,12 +939,6 @@ void block_put(void)
 	ln_buf[ln_num] = mbf;
 	ln_pos[ln_num] = multicol_start == 0 ? bposy : 1;
 	ln_lmarg[ln_num] = cfmt.leftmargin;
-	if (epsf) {
-		if (cfmt.leftmargin < min_lmarg)
-			min_lmarg = cfmt.leftmargin;
-		if (cfmt.rightmargin < max_rmarg)
-			max_rmarg = cfmt.rightmargin;
-	}
 	ln_scale[ln_num] = cfmt.scale;
 	ln_font[ln_num] = outft;
 	ln_num++;

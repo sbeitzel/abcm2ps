@@ -3,12 +3,12 @@
  *
  * This file is part of abcm2ps.
  *
- * Copyright (C) 1998-2017 Jean-François Moine
- * Adapted from abc2ps, Copyright (C) 1996,1997 Michael Methfessel
+ * Copyright (C) 1998-2020 Jean-François Moine (http://moinejf.free.fr)
+ * Adapted from abc2ps, Copyright (C) 1996-1998 Michael Methfessel
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as published
+ * by the Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
  */
 
@@ -122,6 +122,7 @@ static struct SYMBOL *sym_dup(struct SYMBOL *s_orig)
 
 	s->gch = NULL;
 	s->ly = NULL;
+	s->extra = NULL;
 	return s;
 }
 
@@ -303,6 +304,9 @@ if (s1->xs == s2->xs)
 /*  if (nflags>1) b=b+2*stem;*/	/* leave a bit more room if several beams */
 
 	/* have flat beams when asked */
+	if ( cfmt.flatbeamgracing && s1->flags & ABC_F_GRACE)
+		a = 0;
+
 	if (cfmt.flatbeams) {
 //		if (!(s1->flags & ABC_F_GRACE))
 //			b = -11 + staff_tb[staff].y;
@@ -919,10 +923,11 @@ static void draw_timesig(float x,
 					f = "ctsig";
 					l--;
 				}
-				meter[0] = '\0';
-				x -= 5;
-				y += 12;
-				break;
+				dx = (float) (13 * l);
+				putxy(x - 5 + dx * .5, y + 12);
+				a2b("%s\n", f);
+				x += dx;
+				continue;
 			case 'c':
 				if (s->u.meter.meter[i].top[1] != '.') {
 					f = "imsig";
@@ -978,6 +983,9 @@ static void draw_acc(int acc, int microscale)
 		}
 		a2b("%d %s%d ", n, acc_tb[acc & 0x07], d);
 	} else {
+		if (acc >> 3 != 0
+		 && cfmt.nedo)		// %%MIDI temperamentequal <nedo>
+			n = ((((n >> 8) + 1) * 12) - 1) * 256 + cfmt.nedo - 1;
 		a2b("%s%d ", acc_tb[acc & 0x07], n);
 	}
 }
@@ -1222,7 +1230,9 @@ static void draw_bar(struct SYMBOL *s, float bot, float h)
 	/* don't put a line between the staves if there is no bar above */
 	if (staff != 0
 	 && s->ts_prev
-	 && (s->ts_prev->type != BAR || s->ts_prev->staff != staff - 1))
+// (a staff may not be displayed)
+//	 && (s->ts_prev->type != BAR || s->ts_prev->staff != staff - 1))
+	 && s->ts_prev->type != BAR)
 		h = staff_tb[staff].topbar * staff_tb[staff].staffscale;
 
 	bar_type = bar_cnv(s->u.bar.type);
@@ -1234,6 +1244,7 @@ static void draw_bar(struct SYMBOL *s, float bot, float h)
 		case B_BAR:
 			if (s->u.bar.dotted)
 				psf = "dotbar";
+			x -= 1;
 			break;
 		case B_OBRA:
 		case B_CBRA:
@@ -2087,12 +2098,11 @@ if (two_staves) error(0, k1, "*** multi-staves slurs not treated yet");
 						} else {
 							y1 = k1->ys - 6;
 						}
-// don't clash with decorations
-//					} else {
-//						y1 = k1->ys + 3;
+					} else {
+						y1 = k1->ys + 3;
 					}
-//				} else {
-//					y1 = k1->y + 8;
+				} else {
+					y1 = k1->y + 8;
 				}
 			} else {
 				if (k1->stem < 0) {
@@ -2107,11 +2117,11 @@ if (two_staves) error(0, k1, "*** multi-staves slurs not treated yet");
 						} else {
 							y1 = k1->ys + 6;
 						}
-//					} else {
-//						y1 = k1->ys - 3;
+					} else {
+						y1 = k1->ys - 3;
 					}
-//				} else {
-//					y1 = k1->y - 8;
+				} else {
+					y1 = k1->y - 8;
 				}
 			}
 		}
@@ -2129,10 +2139,10 @@ if (two_staves) error(0, k1, "*** multi-staves slurs not treated yet");
 					 && (!(k2->sflags & S_IN_TUPLET)))
 //						|| k2->ys > y2 - 3))
 						y2 = k2->ys - 6;
-//					else
-//						y2 = k2->ys + 3;
-//				} else {
-//					y2 = k2->y + 8;
+					else
+						y2 = k2->ys + 3;
+				} else {
+					y2 = k2->y + 8;
 				}
 			} else {
 				if (k2->stem < 0) {
@@ -2142,10 +2152,10 @@ if (two_staves) error(0, k1, "*** multi-staves slurs not treated yet");
 					 && (!(k2->sflags & S_IN_TUPLET)))
 //						|| k2->ys < y2 + 3))
 						y2 = k2->ys + 6;
-//					else
-//						y2 = k2->ys - 3;
-//				} else {
-//					y2 = k2->y - 8;
+					else
+						y2 = k2->ys - 3;
+				} else {
+					y2 = k2->y - 8;
 				}
 			}
 		}
@@ -2538,6 +2548,7 @@ static void draw_slurs(struct SYMBOL *first,
 		if (gr2) {
 			gr2->prev->next = gr2;
 			gr2->extra->prev = NULL;
+			gr2 = NULL;
 		}
 
 		if (s->u.note.slur_st
@@ -2838,7 +2849,7 @@ static struct SYMBOL *draw_tuplet(struct SYMBOL *t,	/* tuplet in extra */
 			break;
 	}
 
-	ym += dy + 2;
+	ym += dy;
 	y1 = ym + a * (x1 - xm);
 	y2 = ym + a * (x2 - xm);
 	putxy(x2 - x1, y2 - y1);
@@ -2865,10 +2876,16 @@ static struct SYMBOL *draw_tuplet(struct SYMBOL *t,	/* tuplet in extra */
 	x1 = s1->x - 7;
 
 	if (s2->dur > s2->prev->dur) {
-		if (s2->next)
-			x2 = s2->next->x - s2->next->wl - 8;
-		else
-			x2 = realwidth - 6;
+		sy = s2->next;
+		if (!sy			// maybe a note in an overlay voice
+		 || sy->time != s2->time + s2->dur) {
+			for (sy = s2->ts_next; sy; sy = sy->ts_next) {
+				if ((sy->sflags & S_SEQST)
+				 && sy->time >= s2->time + s2->dur)
+					break;
+			}
+		}
+		x2 = sy ? sy->x - sy->wl - 5 : realwidth - 6;
 	} else {
 		x2 = s2->x + 2;
 		if (s2->u.note.notes[s2->nhd].shhd > 0)
@@ -2968,6 +2985,12 @@ static struct SYMBOL *draw_tuplet(struct SYMBOL *t,	/* tuplet in extra */
 		a2b("(%d:%d)", t->u.tuplet.p_plet, t->u.tuplet.q_plet);
 	putxy(xm, yy);
 	a2b("y%d bnumb\n", upstaff);
+
+	// let some room for the number
+	if (dir == SL_ABOVE)
+		y_set(upstaff, 1, xm - 3, 6, ym + 3);
+	else
+		y_set(upstaff, 0, xm - 3, 6, ym);
 
 done:
 	s->sflags &= ~S_IN_TUPLET;
@@ -3072,6 +3095,11 @@ static void draw_note_ties(struct SYMBOL *k1,
 			x2 -= 1.5;
 		}
 
+		if (k1->dots && !(p1 & 1)
+		 && ((s > 0 && k1->doty >= 0)
+		  || (s < 0 && k1->doty < 0)))
+			x1 += 6;		// avoid clash with dots
+
 		y = 3 * (p - 18);
 //fixme: clash when 2 ties on second interval chord
 //		if (p & 1)
@@ -3095,6 +3123,7 @@ static void draw_note_ties(struct SYMBOL *k1,
 #endif
 
 		h = (.04 * (x2 - x1) + 10) * s;
+		h *= cfmt.tieheight;
 		slur_out(x1, staff_tb[staff].y + y,
 			 x2, staff_tb[staff].y + y,
 			 s, h, k1->u.note.notes[m1].ti1 & SL_DOTTED, -1);
@@ -4065,11 +4094,11 @@ static void draw_all_lyrics(void)
  * - beams
  * - decorations near the notes
  * - measure bar numbers
- * - n-plets
  * - decorations tied to the notes
- * - slurs
- * - guitar chords
- * - then remaining decorations
+ * - tuplets and slurs
+ * - elements tied to the staves (voltas, chord symbols/annotations,
+ *				  remaining decorations)
+ * - lyrics
  * The buffer output is delayed until the definition of the staff system,
  * so, global variables must be saved (see music.c delayed_output()).
  */
@@ -4160,7 +4189,7 @@ void draw_sym_near(void)
 	if (cfmt.measurenb >= 0)
 		draw_measnb();
 
-//	draw_deco_note();
+	draw_deco_note();
 
 	for (p_voice = first_voice; p_voice; p_voice = p_voice->next) {
 		s = p_voice->sym;
@@ -4212,7 +4241,7 @@ void draw_sym_near(void)
 		}
 	}
 	set_color(0);
-	draw_deco_note();
+//	draw_deco_note();
 	draw_deco_staff();
 	set_sscale(-1);		/* restore the scale parameters */
 	draw_all_lyrics();
@@ -4358,9 +4387,10 @@ static float set_staff(void)
 		staff_tb[staff].empty = 1;
 	}
 	y = 0;
-	if (staff > nstaff) {
+	if (staff > nstaff)
 		staff--;			/* one staff, empty */
-	} else {
+
+	{
 		for (i = 0; i < YSTEP; i++) {
 			v = staff_tb[staff].top[i];
 			if (y < v)
@@ -4370,9 +4400,6 @@ static float set_staff(void)
 
 	/* draw the parts and tempo indications if any */
 	y += draw_partempo(staff, y);
-
-	if (empty[staff])
-		return y;
 
 	y *= staff_tb[staff].staffscale;
 	staffsep = cfmt.staffsep * 0.5 +
@@ -4597,17 +4624,18 @@ float draw_systems(float indent)
 			s2 = s->prev;
 			if (!s2)
 				break;
-			x2 = s2->x;
-			if (s2->type != BAR)
-				x2 += s2->wr;
+			if (s2->type == BAR)
+				x2 = s2->x;
+			else
+				x2 = s->x - s->xmx;
 			staff = s->staff;
 			x = xstaff[staff];
 			if (x >= 0) {
 				if (x >= x2)
 					continue;
 				draw_staff(staff, x, x2);
+				xstaff[staff] = s->x;
 			}
-			xstaff[staff] = s->x;
 			break;
 		default:
 //fixme:does not work for "%%staves K: M: $" */

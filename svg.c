@@ -3,11 +3,11 @@
  *
  * This file is part of abcm2ps.
  *
- * Copyright (C) 1998-2017 Jean-François Moine
+ * Copyright (C) 2011-2019 Jean-François Moine
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as published
+ * by the Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
  */
 
@@ -1072,7 +1072,6 @@ static void xml_str_out(char *p)
 {
 	char *q, *r;
 
-	q = p;
 	for (q = p; *p != '\0';) {
 		switch (*p++) {
 		case '<': r = "&lt;"; break;
@@ -1149,13 +1148,13 @@ static void define_head(float w, float h)
 		"<style type=\"text/css\">\n"
 		".fill {fill: currentColor}\n"
 		".stroke {stroke: currentColor; fill: none}\n"
-		"text{white-space: pre}\n";
+		"text{white-space:pre; fill:currentColor}\n";
 	static const char svg_font_style[] =
-		".music {font:24px music;\n"
+		".music {font:24px %s;\n"
 		"	fill: currentColor}\n";
 	static const char svg_font_style_url[] =
 		"@font-face {\n"
-		"	font-family:\"music\";\n"
+		"	font-family:music;\n"
 		"	src:%s}\n"
 		".music {font:24px music;\n"
 		"	fill: currentColor}\n";
@@ -1168,7 +1167,7 @@ static void define_head(float w, float h)
 		if (strchr(cfmt.musicfont, '('))
 			fprintf(fout, svg_font_style_url, cfmt.musicfont);
 		else
-			fprintf(fout, svg_font_style);
+			fprintf(fout, svg_font_style, cfmt.musicfont);
 	}
 	fputs(svg_head2, fout);
 }
@@ -1204,7 +1203,6 @@ void define_svg_symbols(char *title, int num, float w, float h)
 			fprintf(fout,
 				"}\n"
 				"\t@page {margin: 0}\n"
-				"\ttext {white-space: pre; fill:currentColor}\n"
 				"\tsvg {display: block}\n"
 				"</style>\n"
 				"<title>%s</title>\n"
@@ -1324,7 +1322,10 @@ static void output_font(int span)
 		if (imin > i)
 			imin = i;
 	}
-	fprintf(fout, "%.2fpx %.*s\"", gcur.font_s, imin, fn);
+	if (strchr(fn, ' '))
+		fprintf(fout, "%.2fpx '%.*s'\"", gcur.font_s, imin, fn);
+	else
+		fprintf(fout, "%.2fpx %.*s\"", gcur.font_s, imin, fn);
 }
 
 static float strw(char *s)
@@ -2345,6 +2346,21 @@ curveto:
 			free(s);
 			return;
 		}
+		if (strcmp(op, "dacoda") == 0) {
+			setg(1);
+			e = elt_dup(stack);
+			y = gcur.yoffs - pop_free_val() - 7;
+			e2 = elt_dup(stack);
+			e2->u.v += 10;
+			x = gcur.xoffs + pop_free_val() - 10;
+			fprintf(fout, "<text style=\"font:16px serif\"\n"
+				"	x=\"%.2f\" y=\"%.2f\" text-anchor=\"middle\">Da</text>\n",
+				x, y);
+			push(e2);
+			push(e);
+			xysym("coda", D_coda);
+			return;
+		}
 		if (strcmp(op, "def") == 0) {
 			ps_exec("!");
 			return;
@@ -2496,6 +2512,7 @@ curveto:
 				gcur.font_n_old = gcur.font_n;
 				gcur.font_n = strdup(fontnames[n]);
 				gcur.font_s = h;
+				gold.font_n = NULL;
 			}
 			return;
 		}
@@ -2534,6 +2551,7 @@ curveto:
 				free(gcur.font_n_old);
 				gcur.font_n_old = gcur.font_n;
 				gcur.font_n = s;
+				gold.font_n = NULL;
 			} else {
 				free(s);
 			}
@@ -3702,6 +3720,7 @@ rmoveto:
 				gcur.font_n_old = gcur.font_n;
 				gcur.font_n = strdup(s);
 				gcur.font_s = h;
+				gold.font_n = NULL;
 			} else {
 				free(s);
 			}
@@ -4588,8 +4607,10 @@ void svg_write(char *buf, int len)
 				memcpy(r, q, l);
 				r[l] = '\0';
 				e = elt_new();
-				if (!e)
+				if (!e) {
+					free(r);
 					return;
+				}
 				e->type = STR;
 				e->u.s = (char *) r;
 			}

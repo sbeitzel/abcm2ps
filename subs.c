@@ -3,12 +3,12 @@
  *
  * This file is part of abcm2ps.
  *
- * Copyright (C) 1998-2018 Jean-François Moine
- * Adapted from abc2ps, Copyright (C) 1996,1997 Michael Methfessel
+ * Copyright (C) 1998-2019 Jean-François Moine (http://moinejf.free.fr)
+ * Adapted from abc2ps, Copyright (C) 1996-1998 Michael Methfessel
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as published
+ * by the Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
  */
 
@@ -58,9 +58,14 @@ static short cw_tb[] = {
 	500,500,444,480,200,480,541,500,
 };
 
+// PS/SVG user definitions
+// This structure is dynamically created by malloc
+// so that the field 'text' has the exact size of the user string.
+// The size of this field in the structure is big enough
+// to avoid most warnings of the C compiler.
 static struct u_ps {
 	struct u_ps *next;
-	char text[2];
+	char text[100000];
 } *user_ps;
 
 /* -- print message for internal error and maybe stop -- */
@@ -1403,7 +1408,7 @@ void put_history(void)
 	}
 }
 
-/* -- move trailing "The" to front, set to uppercase letters or add xref -- */
+// -- move trailing article to front, set to uppercase letters and add xref
 char *trim_title(char *p, struct SYMBOL *title)
 {
 	char *b, *q, *r;

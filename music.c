@@ -3,12 +3,12 @@
  *
  * This file is part of abcm2ps.
  *
- * Copyright (C) 1998-2017 Jean-François Moine
- * Adapted from abc2ps, Copyright (C) 1996,1997 Michael Methfessel
+ * Copyright (C) 1998-2021 Jean-François Moine (http://moinejf.free.fr)
+ * Adapted from abc2ps, Copyright (C) 1996-1998 Michael Methfessel
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as published
+ * by the Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
  */
 
@@ -382,6 +382,9 @@ static int may_combine(struct SYMBOL *s)
 	struct SYMBOL *s2;
 	int nhd2;
 
+	if (s->combine == 0
+	 && s->abc_type != ABC_T_REST)
+		return 0;
 	s2 = s->ts_next;
 	if (!s2 || s2->type != NOTEREST)
 		return 0;
@@ -462,11 +465,14 @@ again:
 		for (m = nhd; m > 0; m--) {
 			if (s->u.note.notes[m].pit == s->u.note.notes[m - 1].pit
 			 && s->u.note.notes[m].acc == s->u.note.notes[m - 1].acc) {
-				memmove(&s->u.note.notes[m - 1],
-					&s->u.note.notes[m],
-					sizeof s->u.note.notes[0]);
-				memmove(&s->pits[m - 1], &s->pits[m],
-					sizeof s->pits[0]);
+				i = nhd - m;
+				if (i > 0) {
+					memmove(&s->u.note.notes[m],
+						&s->u.note.notes[m + 1],
+						sizeof s->u.note.notes[0] * i);
+					memmove(&s->pits[m], &s->pits[m + 1],
+						sizeof s->pits[0] * i);
+				}
 				s->nhd = --nhd;
 			}
 		}
@@ -516,9 +522,9 @@ static void combine_voices(void)
 	for (s = tsfirst; s->ts_next; s = s->ts_next) {
 		if (s->combine < 0)
 			continue;
-		if (s->combine == 0
-		 && s->abc_type != ABC_T_REST)
-			continue;
+//		if (s->combine == 0
+//		 && s->abc_type != ABC_T_REST)
+//			continue;
 		if (s->sflags & S_IN_TUPLET) {
 			g = s->extra;
 			if (!g)
@@ -1141,8 +1147,8 @@ static void set_width(struct SYMBOL *s)
 		s->wl = xx;
 		break;
 	case BAR:
-		if (s->sflags & S_NOREPBRA)
-			break;
+//		if (s->sflags & S_NOREPBRA)
+//			break;
 		if (!(s->flags & ABC_F_INVIS)) {
 			int bar_type;
 
@@ -1972,7 +1978,7 @@ normal:
 				break;
 			goto cut_here;
 		}
-		if (s->extra) {
+		if (s->extra && s->type != GRACE) {
 			if (!extra)
 				extra = s;
 			else
@@ -2136,8 +2142,10 @@ static struct SYMBOL *set_lines(struct SYMBOL *first,	/* first symbol */
 			s2 = s3;
 		if (s2)
 			s = s2;
-		while (s->x == 0 || s->x + s->shrink * 2 >= xmax)
+		while (s && (s->x == 0 || s->x + s->shrink * 2 >= xmax))
 			s = s->ts_prev;
+		if (!s)
+			break;
 cut_here:
 		if (s->sflags & S_NL) {		/* already set here - advance */
 			error(0, s, "Line split problem - "
@@ -2629,8 +2637,10 @@ static void set_clefs(void)
 				 && new_line == staff_clef[staff].clef->u.clef.line)
 					continue;
 				g = s;
-				while (g->voice != voice)
+				while (g && g->voice != voice)
 					g = g->ts_next;
+				if (!g)
+					continue;
 				if (g->type != CLEF) {
 					g = insert_clef(g, new_type, new_line);
 					if (s2->sflags & S_CLEF_AUTO)
@@ -2912,7 +2922,8 @@ if (staff > nst) {
 			if (u->ymn < stb[staff].st[i].ymn)
 				stb[staff].st[i].ymn = u->ymn;
 			if (u->sflags & S_XSTEM) {
-				if (u->ts_prev->staff != staff - 1
+				if (!u->ts_prev
+				 || u->ts_prev->staff != staff - 1
 				 || u->ts_prev->abc_type != ABC_T_NOTE) {
 					error(1, s, "Bad !xstem!");
 					u->sflags &= ~S_XSTEM;
@@ -3164,7 +3175,8 @@ static struct SYMBOL *sym_new(int type,
 
 	s->ts_next = last_s;
 	s->ts_prev = last_s->ts_prev;
-	s->ts_prev->ts_next = s;
+	if (s->ts_prev)
+		s->ts_prev->ts_next = s;
 	if (!s->ts_prev || s->ts_prev->type != type)
 		s->sflags |= S_SEQST;
 	last_s->ts_prev = s;
@@ -3195,9 +3207,10 @@ static void init_music_line(void)
 
 		/* move the voice to a non empty staff */
 		staff = cursys->voice[voice].staff;
-		while (staff < nstaff && cursys->staff[staff].empty)
+		while (staff <= nstaff && cursys->staff[staff].empty)
 			staff++;
-		p_voice->staff = staff;
+		if (staff <= nstaff)
+			p_voice->staff = staff;
 	}
 
 	/* add a clef at start of the main voices */
@@ -3324,6 +3337,9 @@ static void init_music_line(void)
 
 		// if bar already, keep it in sequence
 		voice = p_voice - voice_tb;
+		bar_start = p_voice->bar_start;
+		p_voice->bar_start = 0;
+
 		if (last_s
 		 && last_s->voice == voice && last_s->type == BAR) {
 			p_voice->last_sym = last_s;
@@ -3331,10 +3347,8 @@ static void init_music_line(void)
 			continue;
 		}
 
-		bar_start = p_voice->bar_start;
 		if (!bar_start)
 			continue;
-		p_voice->bar_start = 0;
 
 		if (cursys->voice[voice].range < 0
 		 || cursys->voice[voice].second
@@ -3460,7 +3474,7 @@ static void set_words(struct VOICE_S *p_voice)
 static void set_rb(struct VOICE_S *p_voice)
 {
 	struct SYMBOL *s, *s2;
-	int mx, n;
+	int n;
 
 	s = p_voice->sym;
 	while (s) {
@@ -3470,60 +3484,26 @@ static void set_rb(struct VOICE_S *p_voice)
 			continue;
 		}
 
-		mx = cfmt.rbmax;
-
-		/* if 1st repeat sequence, compute the bracket length */
-		if (s->text && s->text[0] == '1') {
-			n = 0;
-			s2 = NULL;
-			for (s = s->next; s; s = s->next) {
-				if (s->type != BAR)
-					continue;
-				n++;
-				if (s->sflags & S_RBSTOP) {
-					if (n <= cfmt.rbmax) {
-						mx = n;
-						s2 = NULL;
-					}
-					break;
-				}
-				if (n == cfmt.rbmin)
-					s2 = s;
+		n = 0;
+		s2 = NULL;
+		for (s = s->next; s; s = s->next) {
+			if (s->type != BAR)
+				continue;
+			n++;
+			if (s->sflags & S_RBSTOP)
+				break;
+			if (!s->next) {
+				s->flags |= ABC_F_RBSTOP;
+				s->sflags |= S_RBSTOP;
+				break;
 			}
-			if (s2) {
-				s2->sflags |= S_RBSTOP;
-				mx = cfmt.rbmin;
-			}
-		}
-		while (s) {
-
-			/* check repbra shifts (:| | |2 in 2nd staves) */
-			if (!(s->flags & ABC_F_RBSTART)) {
-				s = s->next;
-				if (!s)
-					break;
-				if (!(s->flags & ABC_F_RBSTART)) {
-					s = s->next;
-					if (!s)
-						break;
-					if (!(s->flags & ABC_F_RBSTART))
-						break;
-				}
-			}
-			n = 0;
-			s2 = NULL;
-			for (s = s->next; s; s = s->next) {
-				if (s->type != BAR)
-					continue;
-				n++;
-				if (s->sflags & S_RBSTOP)
-					break;
-				if (!s->next) {
-					s->flags |= ABC_F_RBSTOP;
-					s->sflags |= S_RBSTOP;
-				} else if (n == mx) {
-					s->sflags |= S_RBSTOP;
-				}
+			if (n == cfmt.rbmin)
+				s2 = s;
+			if (n == cfmt.rbmax) {
+				if (s2)
+					s = s2;
+				s->sflags |= S_RBSTOP;
+				break;
 			}
 		}
 	}
