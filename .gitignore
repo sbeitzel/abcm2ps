@@ -11,3 +11,9 @@ abcm2ps
 abcm2ps.1
 config.h
 Makefile
+Debug
+abcm2ps.mk
+abcm2ps.project
+abcm2ps.txt
+abcm2ps.workspace
+
