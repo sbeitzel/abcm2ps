@@ -127,6 +127,7 @@ static struct format {
 	{"staffnonote", &cfmt.staffnonote, FORMAT_I, 0},
 	{"staffsep", &cfmt.staffsep, FORMAT_U, 0},
 	{"staffwidth", &staffwidth, FORMAT_U, 2},
+	{"stemalignment", &cfmt.stemalignment, FORMAT_I, 0},
 	{"stemheight", &cfmt.stemheight, FORMAT_R, 0},
 	{"straightflags", &cfmt.straightflags, FORMAT_B, 0},
 	{"stretchlast", &cfmt.stretchlast, FORMAT_R, 2},
@@ -414,6 +415,7 @@ void set_format(void)
 	f->aligncomposer = A_RIGHT;
 	f->notespacingfactor = 1.414;
 	f->stemheight = STEM;
+	f->stemalignment = 0;
 #ifndef WIN32
 	f->dateformat = strdup("%b %e, %Y %H:%M");
 #else

@@ -67,6 +67,7 @@ EXAMPLES = accordion.ps \
 	sample3.ps \
 	sample4.ps \
 	sample5.ps \
+	stemalignment.ps \
 	voices.ps
 
 test:	$(EXAMPLES)

@@ -543,6 +543,7 @@ struct FORMAT { 		/* struct for page layout */
 	int rbdbstop, rbmax, rbmin;
 	int setdefl, shiftunison, splittune, squarebreve;
 	int staffnonote, straightflags, stretchstaff;
+	int stemalignment;		/* fixed stem-end: note steps from staff center (0=off) */
 	int textoption, titlecaps, titleleft, titletrim;
 	int timewarn, transpose, tuplets;
 	char *bgcolor, *dateformat, *header, *footer, *header2, *footer2, *titleformat;
@@ -677,6 +678,7 @@ struct VOICE_S {
 	unsigned char slur_st;	/* slurs at start of staff */
 	signed char combine;	/* voice combine */
 	int color;
+	int stemalignment;		/* voice-level override (0 = use global cfmt) */
 	char *stafflines;
 	float staffscale;
 							/* parsing */

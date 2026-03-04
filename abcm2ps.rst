@@ -649,6 +649,10 @@ Especially, you may find a discussion of differences with the
 ABC standard at http://moinejf.free.fr/abcm2ps-doc/features.html
 and a list of formatting options at http://moinejf.free.fr/abcm2ps-doc/.
 
+This fork of ``abcm2ps`` extends Jean-François Moine's work.
+Documentation of its extensions may be found at
+https://github.com/sbeitzel/abcm2ps
+
 AUTHOR
 ======
 
@@ -657,6 +661,12 @@ starting from ``abc2ps`` by Michael Methfessel.
 
 Parts of this manual have been written by Anselm Lingnau
 <lingnau@debian.org> for the ``Debian`` system.
+
+Further modifications have been contributed by Stephen Beitzel
+<https://mechadarwin.com>.
+
+Claude Code <https://claude.ai/>, an AI agent produced by Anthropic,
+has contributed to this program.
 
 Permission is granted to copy, distribute and/or modify this
 document as long as its origin is not misrepresented.
