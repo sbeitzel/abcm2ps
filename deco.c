@@ -142,19 +142,19 @@ static char *std_deco_tb[] = {
 	"turn 3 turn 10 0 5",
 	"wedge 3 wedge 8 1 1",
 	"turnx 3 turnx 10 0 5",
-	"trill( 5 ltr 8 0 0",
-	"trill) 5 ltr 8 0 0",
+	"trill( 3 ltr 8 0 0",
+	"trill) 3 ltr 8 0 0",
 	"snap 3 snap 14 3 3",
 	"thumb 3 thumb 14 2 2",
 	"arpeggio 2 arp 12 10 0",
-	"crescendo( 7 cresc 18 0 0",
-	"crescendo) 7 cresc 18 0 0",
-	"<( 7 cresc 18 0 0",
-	"<) 7 cresc 18 0 0",
-	"diminuendo( 7 dim 18 0 0",
-	"diminuendo) 7 dim 18 0 0",
-	">( 7 dim 18 0 0",
-	">) 7 dim 18 0 0",
+	"crescendo( 6 cresc 18 0 0",
+	"crescendo) 6 cresc 18 0 0",
+	"<( 6 cresc 18 0 0",
+	"<) 6 cresc 18 0 0",
+	"diminuendo( 6 dim 18 0 0",
+	"diminuendo) 6 dim 18 0 0",
+	">( 6 dim 18 0 0",
+	">) 6 dim 18 0 0",
 	"-( 8 gliss 0 0 0",
 	"-) 8 gliss 0 0 0",
 	"~( 8 glisq 0 0 0",
@@ -342,7 +342,7 @@ static void d_arp(struct deco_elt *de)
 	de->y = (float) (3 * (s->pits[0] - 18)) - 3;
 }
 
-/* 7: special case for crescendo/diminuendo */
+/* special case for long dynamics */
 static void d_cresc(struct deco_elt *de)
 {
 	struct SYMBOL *s, *s2;
@@ -491,6 +491,14 @@ static void d_pf(struct deco_elt *de)
 //	char *str;
 	int up;
 
+	// don't treat here the long decorations
+	if (de->flags & DE_LDST)
+		return;
+	if (de->start) {
+		d_cresc(de);
+		return;
+	}
+
 	s = de->s;
 	dd = &deco_def_tb[de->t];
 
@@ -572,7 +580,7 @@ static void d_slide(struct deco_elt *de)
 	de->y = (float) (3 * (yc - 18));
 }
 
-/* 5: special case for long trill */
+/* special case for long decoration */
 static void d_trill(struct deco_elt *de)
 {
 	struct SYMBOL *s, *s2;
@@ -583,6 +591,21 @@ static void d_trill(struct deco_elt *de)
 	if (de->flags & DE_LDST)
 		return;
 	s2 = de->s;
+
+	// only one ottava per staff
+	if (s2->sflags & S_OTTAVA) {
+		struct deco_elt *de2;
+
+		for (de2 = de->next; de2; de2 = de2->next) {
+			if (de2->t == de->t
+			 && de2->s->time == s2->time
+			 && de2->s->staff == s2->staff) {
+				de2->s->sflags &= ~S_OTTAVA;
+				de2->t = 0;
+			}
+		}
+		s2->sflags &= ~S_OTTAVA;
+	}
 
 //	if (de->start) {		/* deco start */
 		s = de->start->s;
@@ -605,6 +628,8 @@ static void d_trill(struct deco_elt *de)
 	dd = &deco_def_tb[de->t];
 	if (dd->func == 4)		// if below
 		up = 0;
+	else if (strcmp(ps_func_tb[dd->ps_func], "o8va") == 0)
+		up = 1;
 	else
 		up = s2->multi >= 0;
 	if (de->defl & DEF_NOEN) {	/* if no decoration end */
@@ -663,7 +688,7 @@ static void d_upstaff(struct deco_elt *de)
 	float x, yc, stafft, staffb, w;
 	int up, inv;
 
-	// don't treat here the long decorations
+	// don't treat here the start of long decorations
 	if (de->flags & DE_LDST)
 		return;
 	if (de->start) {
@@ -814,11 +839,17 @@ static unsigned char deco_build(char *name, char *text)
 		error(1, NULL, "Invalid %%%%deco %s", text);
 		return 128;
 	}
+
 	if ((unsigned) c_func > 10
 	 && (c_func < 32 || c_func > 41)) {
 		error(1, NULL, "%%%%deco: bad C function index (%s)", text);
 		return 128;
 	}
+	if (c_func == 5)			// old !trill(!
+		c_func = 3;
+	if (c_func == 7)			// old !cresc(!
+		c_func = 6;
+
 	if (h < 0 || wl < 0 || wr < 0) {
 		error(1, NULL, "%%%%deco: cannot have a negative value (%s)", text);
 		return 128;
@@ -892,7 +923,6 @@ static unsigned char deco_build(char *name, char *text)
 	dd->h = h;
 	dd->wl = wl;
 	dd->wr = wr;
- 	dd->strx = strx;
 
 	/* link the start and end of long decorations */
 	l = strlen(name);
@@ -903,6 +933,7 @@ static unsigned char deco_build(char *name, char *text)
 	 || (name[l] == ')' && !strchr(name, '('))) {
 		struct deco_def_s *ddo;
 
+		strx = 0;			// (no string)
 		strcpy(name2, name);
 		if (name[l] == '(') {
 			dd->flags = DE_LDST;
@@ -929,6 +960,7 @@ static unsigned char deco_build(char *name, char *text)
 //fixme: memory leak...
 			deco_define(strdup(name2));
 	}
+ 	dd->strx = strx;
 	return ideco;
 }
 
@@ -1008,14 +1040,10 @@ static unsigned char deco_intern(unsigned char ideco,
 {
 	char *name;
 
-	if (ideco < 128) {
-		name = deco[ideco];
-		if (!name) {
-			error(1, s, "Bad character '%c'", ideco);
-			return 0;
-		}
-	} else {
-		name = parse.deco_tb[ideco - 128];
+	name = ideco < 128 ? deco[ideco] : parse.deco_tb[ideco - 128];
+	if (!name) {
+		error(1, s, "Bad character '%c'", ideco);
+		return 0;
 	}
 	for (ideco = 1; ideco < 128; ideco++) {
 		if (!deco_def_tb[ideco].name) {
@@ -1120,7 +1148,8 @@ void deco_cnv(struct decos *dc,
 			dc->n = n;
 			continue;
 		default:
-			if (dd->name[0] == '8' && dd->name[1] == 'v'
+			if (strlen(dd->name) >= 4
+			 && dd->name[0] == '8' && dd->name[1] == 'v'
 			 && dd->name[4] == '\0') {
 				if (dd->name[3] == '(') {
 					if (dd->name[2] == 'a')
@@ -1132,6 +1161,7 @@ void deco_cnv(struct decos *dc,
 					 || dd->name[2] == 'b')
 						curvoice->ottava = 0;
 				}
+				s->sflags |= S_OTTAVA;
 			}
 			continue;
 		case 32:		/* invisible */
@@ -1152,11 +1182,19 @@ void deco_cnv(struct decos *dc,
 					dd->name);
 				break;
 			}
+			if (strlen(dd->name) != 5)
+				n = 0;
+			else
+				n = dd->name[4] - '0';
+			if (n <= 0 || n > 4) {
+				error(1, s, "bad definition of !%s!", dd->name);
+				break;
+			}
 			s->sflags |= (S_TREM2 | S_BEAM_END);
 			s->sflags &= ~S_BEAM_ST;
 			prev->sflags |= (S_TREM2 | S_BEAM_ST);
 			prev->sflags &= ~S_BEAM_END;
-			s->aux = prev->aux = dd->name[4] - '0';
+			s->aux = prev->aux = n;
 			for (j = 0; j <= s->nhd; j++)
 				s->u.note.notes[j].len *= 2;
 			for (j = 0; j <= prev->nhd; j++)
@@ -1174,6 +1212,11 @@ void deco_cnv(struct decos *dc,
 				error(1, s, must_note_fmt, dd->name);
 				break;
 			}
+			if (strlen(dd->name) != 7
+			 || (dd->name[6] != '1' && dd->name[6] != '2')) {
+				error(1, s, "bad definition of !%s!", dd->name);
+				break;
+			}
 			s->sflags |= dd->name[6] == '1' ?
 					S_BEAM_BR1 : S_BEAM_BR2;
 			break;
@@ -1185,12 +1228,21 @@ void deco_cnv(struct decos *dc,
 				error(1, s, must_note_fmt, dd->name);
 				break;
 			}
+			n = strlen(dd->name);
+			if (n > 3) {
+				error(1, s, "bad definition of !%s!", dd->name);
+				break;
+			}
 			s->sflags |= S_TREM1;
-			s->aux = strlen(dd->name);	/* 1, 2 or 3 */
+			s->aux = n;	/* 1, 2 or 3 */
 			break;
 		case 39:		/* beam-accel/beam-rall */
 			if (s->abc_type != ABC_T_NOTE) {
 				error(1, s, must_note_fmt, dd->name);
+				break;
+			}
+			if (strlen(dd->name) < 6) {
+				error(1, s, "bad definition of !%s!", dd->name);
 				break;
 			}
 			s->sflags |= S_FEATHERED_BEAM;
@@ -1455,8 +1507,6 @@ static void deco_create(struct SYMBOL *s,
 			break;
 		case 3:				/* d_upstaff */
 		case 4:
-//fixme:trill does not work yet
-		case 5:				/* trill */
 			posit = s->posit.orn;
 			break;
 		case 6:				/* d_pf */

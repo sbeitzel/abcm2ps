@@ -1155,7 +1155,7 @@ static void define_head(float w, float h)
 		"	fill: currentColor}\n";
 	static const char svg_font_style_url[] =
 		"@font-face {\n"
-		"	font-family:music;\n"
+		"	font-family:\"music\";\n"
 		"	src:%s}\n"
 		".music {font:24px music;\n"
 		"	fill: currentColor}\n";
@@ -1694,6 +1694,11 @@ static void show(char type)
 		s = NULL;
 		break;
 	default:
+		if (!stack) {
+			fprintf(stderr, "svg top: Stack empty\n");
+			ps_error = 1;
+			return;
+		}
 		if (stack->type == STR) {
 			s = pop_free_str();
 			if (!s || s[0] != '(') {
@@ -2483,6 +2488,8 @@ curveto:
 	case 'F':
 		if (sscanf(op, "F%d", &n) == 1) {
 			h = pop_free_val();
+			if (!fontnames[n])
+				break;
 			if (gcur.font_s != h
 			 || strcmp(fontnames[n], gcur.font_n) != 0) {
 				free(gcur.font_n_old);

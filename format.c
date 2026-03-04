@@ -1189,6 +1189,8 @@ void interpret_fmt_line(char *w,		/* keyword */
 		switch (fd->subtype) {
 #ifdef HAVE_PANGO
 		case 2:				/* %%pango = 0, 1 or 2 */
+			if (svg || epsf > 1)	// if SVG output
+				break;
 			if (*p == '2') {
 				cfmt.pango = 2;
 				break;
@@ -1422,5 +1424,5 @@ void set_font(int ft)
 /* -- get the encoding of a font -- */
 int get_font_encoding(int ft)
 {
-	return font_enc[ft];
+	return font_enc[cfmt.font_tb[ft].fnum];
 }
