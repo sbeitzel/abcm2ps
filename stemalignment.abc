@@ -1,0 +1,52 @@
+%%textfont Helvetica-Bold 14
+%%center Tests for \%\%stemalignment directive
+
+X:1
+T:Global stemalignment -6: stems down
+T:(Target: C4, middle C, first ledger line below treble staff)
+M:4/4
+L:1/4
+%%stemalignment -6
+K:C treble
+GABC | DEFG | ABCD | EFGc | defa | g3z |
+
+X:2
+T:Global stemalignment +6: stems up
+T:(Target: A5, six steps above the B4 center line)
+M:4/4
+L:1/4
+%%stemalignment 6
+K:C treble
+CDEF | GABc | cBAG | FEDC |
+
+X:3
+T:Voice-level stemalignment override
+T:(V1 target: E4, bottom line; V2 target: F5, top line)
+M:4/4
+L:1/4
+K:C treble
+V:1
+%%stemalignment -4
+GABc | cBAG |
+V:2
+%%stemalignment 4
+GABc | cBAG |
+
+X:4
+T:Beamed notes with stemalignment -6: stems down
+T:(Target: C4, middle C, first ledger line below treble staff)
+M:4/4
+L:1/8
+%%stemalignment -6
+K:C treble
+cdef gabc' | c'bag fedc |
+
+X:5
+T:Notes approaching and crossing the alignment target
+T:(stemalignment -6; target is C4. Notes from c5 descend through C4 to B3)
+T:(Stems should align at C4 line until notes drop below it)
+M:2/4
+L:1/8
+%%stemalignment -6
+K:C treble
+cBAG | FEDC | B,2 z2 |

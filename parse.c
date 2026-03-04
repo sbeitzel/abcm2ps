@@ -5719,6 +5719,13 @@ static struct SYMBOL *process_pscomment(struct SYMBOL *s)
 			get_staves(s);
 			return s;
 		}
+		if (strcmp(w, "stemalignment") == 0) {
+			if (s->state == ABC_S_TUNE) {
+				curvoice->stemalignment = (int) strtol(p, NULL, 10);
+				return s;	/* voice only; cfmt not changed */
+			}
+			break;		/* global/header: fall through to interpret_fmt_line */
+		}
 		if (strcmp(w, "stemdir") == 0) {
 			set_voice_param(curvoice, s->state, w, p);
 			return s;

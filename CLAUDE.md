@@ -6,6 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **abcm2ps** is a C program that converts ABC music notation files to PostScript (PS) or SVG output. It supports multiple voices/staves (the 'm' in the name). Based on abc2ps v1.2.5.
 
+## External Resources
+
+Since this program specifically deals with ABC music notation, and since it is intended to support
+version 2.2 of the standard, any modifications to the program should keep this version in mind. The
+specification for version 2.2 is available [here](https://abcnotation.com/wiki/abc:standard:v2.2).
+
 ## Build Commands
 
 ```sh

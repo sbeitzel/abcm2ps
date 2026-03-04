@@ -17,3 +17,6 @@ abcm2ps.project
 abcm2ps.txt
 abcm2ps.workspace
 
+# Ignore test and build artifacts
+*.ps
+*.pdf

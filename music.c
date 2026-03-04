@@ -4338,7 +4338,7 @@ static void set_stems(void)
 	struct SYSTEM *sy;
 	struct SYMBOL *s, *s2, *g;
 	float slen, scale;
-	int ymn, ymx, nflags, mid;
+	int ymn, ymx, nflags, mid, sa;
 
 	sy = cursys;
 	for (s = tsfirst; s; s = s->ts_next) {
@@ -4418,6 +4418,11 @@ static void set_stems(void)
 
 		/* set height of stem end */
 		mid = s->mid;
+		sa = voice_tb[s->voice].stemalignment;
+		if (!sa)
+			sa = cfmt.stemalignment;
+		if (sa)
+			s->stem = (sa > 0) ? 1 : -1;	/* force direction */
 		slen = cfmt.stemheight;
 		switch (nflags) {
 		case 2: slen += 2; break;
@@ -4465,9 +4470,15 @@ static void set_stems(void)
  *			 || s->u.note.ti2[0] != 0) */
 				ymn -= 3;
 			s->ymn = ymn - 4;
-			s->ys = ymx + slen;
-			if (s->ys < mid)
-				s->ys = mid;
+			if (sa > 0) {
+				s->ys = s->mid + sa * 3.0f;
+				if (s->ys <= ymx)	/* clamp: stem tip must clear note head */
+					s->ys = ymx + 3;
+			} else {
+				s->ys = ymx + slen;
+				if (s->ys < mid)
+					s->ys = mid;
+			}
 			s->ymx = (int) (s->ys + 2.5);
 		} else {			/* stem down */
 			if (s->pits[0] < 18
@@ -4478,9 +4489,15 @@ static void set_stems(void)
 				if (s->pits[0] < 16)
 					slen -= 2;
 			}
-			s->ys = ymn - slen;
-			if (s->ys > mid)
-				s->ys = mid;
+			if (sa < 0) {
+				s->ys = s->mid + sa * 3.0f;
+				if (s->ys >= ymn)	/* clamp: stem tip must clear note head */
+					s->ys = ymn - 3;
+			} else {
+				s->ys = ymn - slen;
+				if (s->ys > mid)
+					s->ys = mid;
+			}
 			s->ymn = (int) (s->ys - 2.5);
 			s->y = ymx;
 /*fixme:the tie may be lower*/
